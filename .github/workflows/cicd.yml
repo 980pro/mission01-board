@@ -1,0 +1,81 @@
+name: Example CI & CD
+
+on:
+  push:
+    branches: ["main"]
+ # pull_request:
+  #  branches: ["develop"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      # 소스코드 복사 (서브모듈 추가)
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.CHECKOUT_TOKEN }}
+          submodules: true
+      # Gradle로 JDK 17버전 세팅    
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+          
+      # Gradlew 권한 부여
+      - name: Add permission for gradlew
+        run: chmod +x gradlew
+
+      # Copy application.yml
+      - name: Copy Private Files
+        run: ./gradlew copyPrivate
+
+      # Gradle 빌드 진행
+      - name: Build with Gradle
+        uses: gradle/gradle-build-action@v2
+        with:
+          arguments: build -x test
+
+      # Mysql Setup
+      - name: Setup MySQL
+        uses: samin/mysql-action@v1
+        with:
+          mysql database: 'ohgiraffers_db'
+          mysql user: ${{ secrets.MYSQL_USERNAME }}
+          mysql password: ${{ secrets.MYSQL_PASSWORD }}
+
+      # 테스트 진행
+      - name: Test
+        run: ./gradlew test
+
+      # Docker 로그인
+      - name: Docker Login
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # Docker build 및 docker hub로 push
+      - name: Docker build & push to docker repo
+        run: |
+          docker build -f Dockerfile -t ${{ secrets.DOCKER_REPO }} .
+          docker tag  ${{ secrets.DOCKER_REPO }}:latest ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}
+
+      # ssh 접속 및 명령어로 기존 컨테이너를 내리고, 이미지를 업데이트해 배포한다.
+      - name: Deploy to server
+        uses: appleboy/ssh-action@master
+        id: deploy
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_PEMKEY }}
+          envs: GITHUB_SHA
+          script: |
+            sudo docker stop spring-container
+            sudo docker rm spring-container
+            sudo docker pull ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}:latest
+            sudo docker run --name spring-container -d -p 8080:8080 ${{ secrets.DOCKER_USERNAME }}/${{ secrets.DOCKER_REPO }}
+            sudo docker image prune -f
