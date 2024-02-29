@@ -58,7 +58,7 @@ tasks.named('test') {
 
 tasks.register('copyPrivate') {
     copy {
-        from './Mission01-Board-config'
+        from './mission01-board-config'
         include "application.yml"
         into 'src/main/resources'
     }
