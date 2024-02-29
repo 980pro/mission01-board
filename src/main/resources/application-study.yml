@@ -8,15 +8,13 @@ server:
       
 spring:
   datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://ec2-34-205-18-229.compute-1.amazonaws.com:3306/ohgiraffers_db?serverTimezone=Asia/Seoul
     username: ohgiraffers
     password: ohgiraffers
+    driver-class-name: com.mysql.cj.jdbc.Driver
     
   jpa:
+    database-platform: org.hibernate.dialect.MySQL57Dialect
     hibernate:
       ddl-auto: create
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.MySQL57Dialect
-        show_sql: true
+    show-sql: true
